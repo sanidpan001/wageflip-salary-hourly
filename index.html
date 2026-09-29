@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WageFlip — Salary to Hourly Wage Converter with Overtime, PTO &amp; Benefits</title>
+<meta name="description" content="WageFlip converts salary to hourly wage and back — with PTO days, unpaid weeks, overtime at 1.5x, and employer benefits load. See your true hourly wage, not the 2080-hour myth. Free, unlimited, no signup.">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        ink: '#0C1420',
+        panel: '#111C2C',
+        panel2: '#0F1A2A',
+        line: '#1E2E44',
+        mint: '#34D399',
+        mintdim: '#10B981',
+        gold: '#FBBF24',
+        goldsoft: '#F59E0B',
+        mute: '#8FA3B8'
+      },
+      fontFamily: {
+        mono: ['ui-monospace','SFMono-Regular','Menlo','Consolas','monospace']
+      }
+    }
+  }
+}
+</script>
+<style>
+  body { background:#0C1420; }
+  .ledger-grid {
+    background-image:
+      linear-gradient(rgba(52,211,153,0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(52,211,153,0.045) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+  .num { font-variant-numeric: tabular-nums; font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+  .bar-seg { transition: width .45s cubic-bezier(.4,0,.2,1); }
+  input[type=range] { accent-color:#34D399; }
+  input[type=number]::-webkit-inner-spin-button { opacity:.35; }
+  .card { background:linear-gradient(160deg,#111C2C 0%,#0E1826 100%); border:1px solid #1E2E44; }
+  .card:hover { border-color:#2A405C; }
+  details.faq summary::-webkit-details-marker { display:none; }
+  details.faq[open] summary .chev { transform: rotate(180deg); }
+  .chev { transition: transform .25s; }
+  @media print { .no-print { display:none !important; } }
+</style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "How do I convert an annual salary to an hourly wage?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Divide the annual salary by your actual annual work hours. The quick estimate divides by 2,080 (40 hours x 52 weeks), but the accurate method subtracts PTO hours and unpaid weeks first. For example, a $60,000 salary with 15 PTO days at 40 hours per week equals $60,000 divided by 1,960 hours, or $30.61 per hour — not the $28.85 the 2080 shortcut gives."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Why is my true hourly wage different from salary divided by 2080?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The 2,080-hour shortcut assumes you work every one of 52 weeks with zero paid time off and zero unpaid weeks. Paid vacation, sick days, and unpaid leave all shrink the hours you actually work, which raises your true hourly wage because the same pay is spread over fewer hours. Unpaid weeks do the opposite to your annual total: they reduce your yearly pay, so the honest calculation adjusts for both."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does PTO affect my effective hourly rate?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Paid time off raises your effective hourly rate. The formula is: annual pay divided by (scheduled annual hours minus PTO hours). If you earn $60,000 working 40 hours a week and take 15 paid days off (120 hours), your effective rate is $60,000 / 1,960 = $30.61 per hour, about 6% higher than the nominal $28.85 rate. More PTO means a higher true hourly wage for the same salary."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I factor overtime into my hourly wage?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Add your overtime earnings to your annual pay, then divide by your total hours worked including overtime. Overtime is usually paid at 1.5 times the regular rate. For example, 5 overtime hours per week at a $20 base rate adds $7,800 per year (5 x $30 x 52). Your true hourly wage then becomes total annual pay divided by total hours worked, which blends the base rate and the premium rate into one honest number."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What does a 25 to 30 percent benefits load mean for salary comparison?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A benefits load is the extra cost an employer pays on top of your salary: health insurance, retirement contributions, payroll taxes, workers compensation, and paid leave. A 25-30% load means a $60,000 salary actually costs the employer $75,000 to $78,000 per year. When comparing a salaried job with benefits to a contractor rate with no benefits, multiply the salary by roughly 1.25 to 1.30 to find the equivalent contract rate."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How should a contractor compare a contract hourly rate to a salary?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A contractor should convert the salary to an hourly figure using actual work hours (subtracting PTO and unpaid weeks), then multiply by 1.25 to 1.30 to account for missing benefits like health insurance and retirement. For instance, a $60,000 salary with 15 PTO days converts to about $30.61 per true hour, so an equivalent contractor rate is roughly $38 to $40 per hour before considering self-employment taxes and unpaid time between contracts."
+      }
+    }
+  ]
+}
+</script>
+</head>
+<body class="text-slate-200 antialiased min-h-screen ledger-grid">
+
+<!-- ============ HEADER ============ -->
+<header class="sticky top-0 z-50 border-b border-line/80 bg-[#0C1420]/90 backdrop-blur">
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between">
+    <a href="#top" class="flex items-center gap-2.5" aria-label="WageFlip home">
+      <span class="grid place-items-center w-9 h-9 rounded-lg bg-mint/15 border border-mint/40 text-mint font-black text-lg font-mono">W</span>
+      <span class="text-xl font-extrabold tracking-tight text-white">Wage<span class="text-mint">Flip</span></span>
+    </a>
+    <nav class="flex items-center gap-5 sm:gap-7 text-sm font-medium">
+      <a href="#top" class="text-slate-300 hover:text-mint transition-colors">Home</a>
+      <a href="https://fixoraa.tech" class="text-slate-300 hover:text-mint transition-colors">More Tools</a>
+    </nav>
+  </div>
+</header>
+
+<div id="top"></div>
+
+<!-- ============ TOP AD ============ -->
+<div class="no-print mx-auto max-w-6xl px-4 sm:px-6 pt-4" role="complementary" aria-label="Advertisement">
+  <div class="mx-auto text-center" style="max-width:728px">
+    <span class="block text-[10px] tracking-[0.18em] uppercase text-slate-400 mb-1.5">Advertisement</span>
+    <div class="flex justify-center overflow-hidden">
+      <div class="origin-top scale-[0.44] sm:scale-100 shrink-0">
+        <script>
+          atOptions = { 'key' : '4e68ac77881c17fe128a46565d9a4e8c', 'format' : 'iframe', 'height' : 90, 'width' : 728, 'params' : {} };
+        </script>
+        <script src="https://www.highrevenueformat.com/4e68ac77881c17fe128a46565d9a4e8c/invoke.js"></script>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ HERO + TOOL ============ -->
+<main class="mx-auto max-w-6xl px-4 sm:px-6 py-8 sm:py-10">
+
+  <div class="text-center max-w-2xl mx-auto mb-8">
+    <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">Salary <span class="text-mint">&harr;</span> Hourly Wage Converter</h1>
+    <p class="mt-3 text-mute text-sm sm:text-base">Not the lazy 2080-hour math. Enter your real schedule — PTO days, unpaid weeks, overtime — and see your <span class="text-gold font-semibold">true hourly wage</span> plus what you really cost an employer.</p>
+    <div class="mt-4 inline-flex items-center gap-2 rounded-full border border-mint/40 bg-mint/10 px-4 py-1.5 text-xs sm:text-sm font-semibold text-mint">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Unlimited Free Usage &middot; No signup &middot; No paywall
+    </div>
+  </div>
+
+  <section aria-label="WageFlip converter" class="card rounded-2xl p-4 sm:p-6 lg:p-8 shadow-2xl shadow-black/40">
+    <div class="grid lg:grid-cols-5 gap-6 lg:gap-8">
+
+      <!-- ===== INPUTS ===== -->
+      <div class="lg:col-span-2 space-y-5">
+        <h2 class="text-sm font-bold uppercase tracking-[0.15em] text-mute border-b border-line pb-2">Your pay details</h2>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="col-span-2 sm:col-span-1 lg:col-span-2 xl:col-span-1">
+            <label for="in-amount" class="block text-xs font-semibold text-slate-300 mb-1.5">Pay amount</label>
+            <input id="in-amount" type="number" min="0" step="any" value="60000"
+              class="num w-full rounded-lg bg-[#0C1420] border border-line px-3 py-2.5 text-white text-lg font-semibold focus:outline-none focus:border-mint focus:ring-1 focus:ring-mint/50">
+          </div>
+          <div class="col-span-2 sm:col-span-1 lg:col-span-2 xl:col-span-1">
+            <label for="in-period" class="block text-xs font-semibold text-slate-300 mb-1.5">Paid per</label>
+            <select id="in-period"
+              class="w-full rounded-lg bg-[#0C1420] border border-line px-3 py-2.5 text-white text-sm font-medium focus:outline-none focus:border-mint">
+              <option value="hourly">Hour</option>
+              <option value="daily">Day</option>
+              <option value="weekly">Week</option>
+              <option value="monthly">Month</option>
+              <option value="annual" selected>Year</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label for="in-currency" class="block text-xs font-semibold text-slate-300 mb-1.5">Currency</label>
+          <select id="in-currency"
+            class="w-full rounded-lg bg-[#0C1420] border border-line px-3 py-2.5 text-white text-sm font-medium focus:outline-none focus:border-mint">
+            <option value="$" selected>USD — $ Dollar</option>
+            <option value="€">EUR — € Euro</option>
+            <option value="£">GBP — £ Pound</option>
+            <option value="₹">INR — ₹ Rupee</option>
+          </select>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label for="in-hours" class="block text-xs font-semibold text-slate-300 mb-1.5">Hours / week</label>
+            <input id="in-hours" type="number" min="0" max="168" step="0.5" value="40"
+              class="num w-full rounded-lg bg-[#0C1420] border border-line px-3 py-2.5 text-white font-semibold focus:outline-none focus:border-mint">
+          </div>
+          <div>
+            <label for="in-pto" class="block text-xs font-semibold text-slate-300 mb-1.5">PTO days / year</label>
+            <input id="in-pto" type="number" min="0" max="365" step="1" value="15"
+              class="num w-full rounded-lg bg-[#0C1420] border border-line px-3 py-2.5 text-white font-semibold focus:outline-none focus:border-mint">
+          </div>
+          <div>
+            <label for="in-unpaid" class="block text-xs font-semibold text-slate-300 mb-1.5">Unpaid weeks / year</label>
+            <input id="in-unpaid" type="number" min="0" max="52" step="1" value="0"
+              class="num w-full rounded-lg bg-[#0C1420] border border-line px-3 py-2.5 text-white font-semibold focus:outline-none focus:border-mint">
+          </div>
+          <div>
+            <label for="in-ot" class="block text-xs font-semibold text-slate-300 mb-1.5">Overtime hrs / week</label>
+            <input id="in-ot" type="number" min="0" max="168" step="0.5" value="0"
+              class="num w-full rounded-lg bg-[#0C1420] border border-line px-3 py-2.5 text-white font-semibold focus:outline-none focus:border-mint">
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-line bg-[#0C1420]/60 p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <label for="in-ben" class="text-xs font-semibold text-slate-300">Benefits load <span class="text-mute font-normal">(employer cost view)</span></label>
+            <button id="in-ben" role="switch" aria-checked="true"
+              class="relative w-11 h-6 rounded-full bg-mint transition-colors focus:outline-none focus:ring-2 focus:ring-mint/60"
+              aria-label="Toggle benefits load">
+              <span id="in-ben-knob" class="absolute top-0.5 left-[22px] w-5 h-5 rounded-full bg-white shadow transition-all"></span>
+            </button>
+          </div>
+          <div class="flex items-center gap-3">
+            <input id="in-benpct" type="range" min="0" max="60" step="1" value="25" class="flex-1" aria-label="Benefits load percent">
+            <span id="benpct-label" class="num text-sm font-bold text-gold w-12 text-right">+25%</span>
+          </div>
+          <p class="text-[11px] text-mute leading-relaxed">Health, retirement, payroll taxes &amp; insurance add ~25&ndash;30% on top of salary. Toggle to see true employer cost.</p>
+        </div>
+
+        <p id="formula-line" class="num text-[11px] text-mute leading-relaxed border-t border-line pt-3"></p>
+      </div>
+
+      <!-- ===== RESULTS ===== -->
+      <div class="lg:col-span-3 space-y-5">
+        <!-- True wage hero -->
+        <div class="rounded-2xl border border-mint/30 bg-gradient-to-br from-mint/10 via-transparent to-transparent p-5 sm:p-6">
+          <div class="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-mint">True hourly wage</p>
+              <p id="r-true" class="num text-4xl sm:text-5xl font-black text-white mt-1">$0.00<span class="text-base font-medium text-mute">/hr</span></p>
+              <p class="text-xs text-mute mt-1.5">after PTO, unpaid time &amp; overtime &middot; <span class="text-slate-300">nominal <span id="r-nominal" class="num font-semibold">$0.00</span>/hr</span></p>
+            </div>
+            <div class="text-right">
+              <p class="text-[11px] font-bold uppercase tracking-[0.18em] text-gold">Employer cost</p>
+              <p id="r-employer" class="num text-2xl sm:text-3xl font-black text-gold mt-1">$0</p>
+              <p class="text-xs text-mute mt-1">per year incl. benefits</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pay grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div class="card rounded-xl p-4">
+            <p class="text-[10px] font-bold uppercase tracking-[0.15em] text-mute">Annual</p>
+            <p id="r-annual" class="num text-xl sm:text-2xl font-bold text-white mt-1">$0</p>
+          </div>
+          <div class="card rounded-xl p-4">
+            <p class="text-[10px] font-bold uppercase tracking-[0.15em] text-mute">Monthly</p>
+            <p id="r-monthly" class="num text-xl sm:text-2xl font-bold text-white mt-1">$0</p>
+          </div>
+          <div class="card rounded-xl p-4">
+            <p class="text-[10px] font-bold uppercase tracking-[0.15em] text-mute">Weekly</p>
+            <p id="r-weekly" class="num text-xl sm:text-2xl font-bold text-white mt-1">$0</p>
+          </div>
+          <div class="card rounded-xl p-4">
+            <p class="text-[10px] font-bold uppercase tracking-[0.15em] text-mute">Daily</p>
+            <p id="r-daily" class="num text-xl sm:text-2xl font-bold text-white mt-1">$0</p>
+          </div>
+          <div class="card rounded-xl p-4">
+            <p class="text-[10px] font-bold uppercase tracking-[0.15em] text-mute">Overtime pay / yr</p>
+            <p id="r-otpay" class="num text-xl sm:text-2xl font-bold text-mint mt-1">$0</p>
+          </div>
+          <div class="card rounded-xl p-4">
+            <p class="text-[10px] font-bold uppercase tracking-[0.15em] text-mute">Hours worked / yr</p>
+            <p id="r-hours" class="num text-xl sm:text-2xl font-bold text-white mt-1">0</p>
+          </div>
+        </div>
+
+        <!-- Breakdown bars -->
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div class="card rounded-xl p-4">
+            <p class="text-[11px] font-bold uppercase tracking-[0.15em] text-mute mb-3">Time breakdown &middot; hrs/yr</p>
+            <div class="h-4 rounded-full overflow-hidden flex bg-[#0C1420]" role="img" aria-label="Time breakdown bar">
+              <div id="bar-worked" class="bar-seg bg-mint" style="width:100%" title="Hours worked"></div>
+              <div id="bar-pto" class="bar-seg bg-gold" style="width:0%" title="PTO hours"></div>
+              <div id="bar-unpaid" class="bar-seg bg-slate-600" style="width:0%" title="Unpaid hours"></div>
+              <div id="bar-ot" class="bar-seg bg-emerald-200" style="width:0%" title="Overtime hours"></div>
+            </div>
+            <div class="mt-3 space-y-1.5 text-xs">
+              <div class="flex justify-between"><span class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-sm bg-mint inline-block"></i>Worked</span><span id="leg-worked" class="num text-slate-300">0</span></div>
+              <div class="flex justify-between"><span class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-sm bg-gold inline-block"></i>PTO (paid)</span><span id="leg-pto" class="num text-slate-300">0</span></div>
+              <div class="flex justify-between"><span class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-sm bg-slate-600 inline-block"></i>Unpaid</span><span id="leg-unpaid" class="num text-slate-300">0</span></div>
+              <div class="flex justify-between"><span class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-sm bg-emerald-200 inline-block"></i>Overtime</span><span id="leg-ot" class="num text-slate-300">0</span></div>
+            </div>
+          </div>
+          <div class="card rounded-xl p-4">
+            <p class="text-[11px] font-bold uppercase tracking-[0.15em] text-mute mb-3">Pay breakdown &middot; employer view</p>
+            <div class="h-4 rounded-full overflow-hidden flex bg-[#0C1420]" role="img" aria-label="Pay breakdown bar">
+              <div id="bar-base" class="bar-seg bg-mint" style="width:100%" title="Base pay"></div>
+              <div id="bar-otpay" class="bar-seg bg-gold" style="width:0%" title="Overtime pay"></div>
+              <div id="bar-ben" class="bar-seg bg-slate-600" style="width:0%" title="Benefits load"></div>
+            </div>
+            <div class="mt-3 space-y-1.5 text-xs">
+              <div class="flex justify-between"><span class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-sm bg-mint inline-block"></i>Base pay</span><span id="leg-base" class="num text-slate-300">$0</span></div>
+              <div class="flex justify-between"><span class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-sm bg-gold inline-block"></i>Overtime pay</span><span id="leg-otpay" class="num text-slate-300">$0</span></div>
+              <div class="flex justify-between"><span class="flex items-center gap-2"><i class="w-2.5 h-2.5 rounded-sm bg-slate-600 inline-block"></i>Benefits load</span><span id="leg-ben" class="num text-slate-300">$0</span></div>
+            </div>
+            <p id="r-emphr" class="num text-xs text-mute mt-3">Employer cost: <span class="text-gold font-bold">$0.00</span>/true hour</p>
+          </div>
+        </div>
+
+        <p class="text-[11px] text-mute leading-relaxed">Gross figures before tax. Overtime paid at 1.5&times; your nominal hourly rate. PTO is paid leave; unpaid weeks reduce annual pay. Estimates only — confirm with your pay stub.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BOTTOM AD ============ -->
+  <div class="no-print mx-auto max-w-6xl px-4 sm:px-6 pb-4 mt-8" role="complementary" aria-label="Advertisement">
+    <div class="mx-auto text-center" style="max-width:728px">
+      <span class="block text-[10px] tracking-[0.18em] uppercase text-slate-400 mb-1.5">Advertisement</span>
+      <div class="flex justify-center overflow-hidden">
+        <script async src="https://js.wpadmngr.com/static/adManager.js" data-admpid="464498"></script>
+      </div>
+    </div>
+  </div>
+</main>
+<!-- ============ SEO ARTICLE ============ -->
+<article id="seo-article" class="mx-auto max-w-6xl px-4 sm:px-6 pb-10 text-slate-300">
+  <div class="max-w-3xl mx-auto prose-like space-y-5 text-[15px] leading-relaxed">
+    <h2 class="text-2xl sm:text-3xl font-extrabold text-white pt-6">Salary to Hourly Wage: The Honest Math Behind the Conversion</h2>
+    <p>Almost every salary-to-hourly calculator on the internet does the same thing: it divides your annual salary by 2,080. That number comes from 40 hours a week multiplied by 52 weeks, and it is treated as gospel. The problem is that almost nobody actually works 2,080 hours a year. If you take two weeks of vacation, eleven public holidays, and five sick days, you work closer to 1,850 hours — which means every dollar of your salary is stretched across far fewer hours than the shortcut assumes. WageFlip exists to do the honest version of this conversion: you tell it how many hours you really work each week, how many paid days off you take, how many weeks go unpaid, and how much overtime you log, and it shows you the wage you actually earn per hour of your life.</p>
+    <p>Why does this matter in practice? Because job offers are quoted in different units for a reason, and the unit flatters the employer. A $65,000 salary sounds substantial until you convert it honestly. Divide it by 2,080 and you get $31.25 per hour — a tidy number that looks great on an offer letter. Now run the real math. If you work 40 hours a week, take 20 paid days off (160 hours), and work every week of the year, your actual hours are 1,920. Divide $65,000 by 1,920 and the true wage is $33.85 per hour. That is more than 8% higher than the headline number. The difference is not academic: it changes how you value your time, how you price freelance work on the side, and whether a competing hourly offer is actually better.</p>
+    <h3 class="text-xl font-bold text-white">The 2,080-hour myth and where it breaks</h3>
+    <p>The 2,080 figure is a payroll convention, not a description of reality. It assumes 52 identical work weeks with no vacation, no holidays, no sick leave, and no unpaid time. For a salaried employee with generous paid time off, the shortcut understates the true hourly wage, because paid leave means you earn the same salary for fewer hours of work. For a seasonal worker with six unpaid weeks a year, the shortcut overstates both the annual total and the hourly figure, because it counts pay for weeks when no paycheck arrives. For part-time workers the shortcut is simply wrong in both directions. The honest formula has three steps. First, compute your scheduled annual hours: hours per week multiplied by 52. Second, subtract paid time off hours (PTO days multiplied by your hours per day) and unpaid-week hours (unpaid weeks multiplied by hours per week). The result is the hours you actually work. Third, compute your real annual pay: your base pay reduced for unpaid weeks, plus overtime earnings. Divide real annual pay by actual hours worked and you have your true hourly wage.</p>
+    <p>Here is a worked example you can check by hand. Take a $72,000 salary, a 40-hour week, 18 PTO days, and zero unpaid weeks. Scheduled annual hours are 2,080. PTO hours are 18 days times 8 hours, or 144. Actual hours worked: 2,080 minus 144 equals 1,936. True hourly wage: $72,000 divided by 1,936 equals $37.19. The lazy 2,080 shortcut would have told you $34.62. The gap — $2.57 per hour — is the hidden raise your vacation time is already giving you. WageFlip performs exactly this calculation live as you type, so you can slide PTO days up and down and watch your true wage respond.</p>
+    <h3 class="text-xl font-bold text-white">Overtime: the 1.5x multiplier and the blended rate</h3>
+    <p>Overtime complicates the picture in a useful way. In the United States and many other countries, overtime is paid at time-and-a-half: 1.5 times the regular hourly rate for hours beyond the standard workweek. When you regularly work overtime, two things happen at once. Your annual pay rises by the overtime premium, and your total hours rise too. The true hourly wage blends both effects into a single number. Suppose your nominal rate is $20 per hour, you work 40 regular hours, and you add 5 overtime hours every week. Overtime earnings per year are 5 hours times $30 times 52 weeks, or $7,800. Your total annual pay becomes $41,600 plus $7,800, or $49,400. Your total annual hours become 2,080 plus 260, or 2,340. Divide $49,400 by 2,340 and your true hourly wage is $21.11 — higher than the nominal $20, because every overtime hour carries the 50% premium. Notice that the true wage rises with overtime only when the overtime is actually paid at a premium; unpaid extra hours drag the true wage down instead. This is exactly why salary workers who routinely work 50-hour weeks for flat pay should run the numbers: a $60,000 salary spread over 2,600 hours is $23.08 per hour, which may be less than an hourly offer that looked worse on paper.</p>
+    <h3 class="text-xl font-bold text-white">The benefits load: what you cost versus what you earn</h3>
+    <p>Your salary is not what you cost your employer. On top of gross pay, employers fund health insurance, retirement plan contributions, payroll taxes such as Social Security and Medicare, workers compensation insurance, unemployment insurance, and the administrative cost of employing you. Across industries, this benefits load typically adds 25% to 30% on top of salary — higher in countries with mandatory employer pension contributions, lower for lean startups with minimal plans. A $60,000 salary at a 25% load costs the employer $75,000 per year; at 30%, it costs $78,000. WageFlip's employer-cost view applies your chosen load percentage to your total annual pay so you can see the full picture.</p>
+    <p>The benefits load matters most when you compare a salaried job against contract or freelance work. A contractor who bills $40 per hour with no benefits is not earning more than a salaried employee at a $30 true hourly wage with full benefits — once you add a 30% load to the employee's number, the employer's cost is $39 per hour, essentially identical. The rule of thumb used by compensation consultants is simple: multiply a salary's true hourly wage by 1.25 to 1.30 to find the equivalent contractor rate, and do the reverse when moving from contracting to employment. WageFlip shows both numbers side by side so the comparison is explicit instead of guesswork.</p>
+    <h3 class="text-xl font-bold text-white">Unpaid weeks: the adjustment most calculators skip</h3>
+    <p>Teachers on summer break, seasonal hospitality workers, agricultural laborers, and anyone on unpaid parental leave face a version of the conversion that standard tools get wrong. If you are quoted $1,000 per week but work only 46 weeks a year, your annual pay is $46,000, not $52,000. If you are quoted a $52,000 salary but take six unpaid weeks, your real annual pay is $52,000 times 46/52, or $46,000. WageFlip treats unpaid weeks as weeks with neither pay nor work: they reduce the annual total and reduce the hour count, which keeps the hourly math consistent. Enter your unpaid weeks and watch both the annual figure and the hourly figure move — this single input is the difference between a fantasy budget and a real one.</p>
+    <h3 class="text-xl font-bold text-white">Going the other direction: hourly to salary</h3>
+    <p>The converter works both ways, which matters because hourly workers are often asked to evaluate salaried offers and vice versa. To convert an hourly wage to an annual salary, multiply the hourly rate by hours per week and by paid weeks (52 minus unpaid weeks), then add overtime earnings at 1.5 times the rate. A $25 hourly wage at 40 hours a week with no unpaid time equals $52,000 per year before overtime. Add 4 overtime hours a week and the annual total rises by 4 times $37.50 times 52, or $7,800, for $59,800. The reverse conversion — salary to hourly — divides by actual hours as described above. Because WageFlip accepts pay quoted per hour, day, week, month, or year, you can paste the number exactly as the job ad states it and compare offers apples to apples.</p>
+    <h3 class="text-xl font-bold text-white">Currency and country differences</h3>
+    <p>Pay conversion is not only an American exercise. A 40-hour week is standard in the US, India, and the UK, but France's statutory week is 35 hours, and several European countries mandate 25 to 30 paid vacation days by law — far above typical US allowances. Statutory paid holidays also differ: India observes a mix of national and regional holidays, the UK has 8 bank holidays, and the US has none mandated at the federal level for private employers. These differences change the denominator of the true-wage calculation dramatically. A €45,000 salary in France at 35 hours a week with 30 PTO days converts very differently from a $45,000 salary in Texas at 40 hours with 10 PTO days. WageFlip includes a currency symbol selector for dollars, euros, pounds, and rupees so the figures read naturally wherever you work. The math is universal; only the inputs change.</p>
+    <h3 class="text-xl font-bold text-white">Common mistakes when comparing pay</h3>
+    <p>The most expensive mistake is comparing a salary to an hourly rate without converting. A $55,000 salary and a $28 hourly offer look close, but $28 an hour at 40 hours a week is $58,240 a year — the hourly offer wins before benefits enter the picture. The second mistake is forgetting that monthly pay is annual divided by 12, not weekly multiplied by 4: there are 52 weeks in a year, not 48, so weekly times 4 understates monthly pay by about 8%. The third mistake is ignoring unpaid time between contracts: freelancers should divide annual income goals by billable hours, not by 2,080, because bench time, admin, and business development are unpaid. The fourth mistake is treating PTO as worthless because "you'd be paid anyway" — paid leave directly raises your true hourly wage, and a job with 25 PTO days can beat a higher-salary job with 10 days once the honest math is done. The fifth mistake is comparing gross figures across tax jurisdictions without acknowledging that take-home pay is a separate calculation entirely; WageFlip deliberately shows gross figures so the comparison stays clean.</p>
+    <h3 class="text-xl font-bold text-white">Negotiation: using your true wage as leverage</h3>
+    <p>Walking into a salary negotiation with your true hourly wage changes the conversation. Instead of arguing about a $5,000 salary bump in the abstract, you can translate it: $5,000 on a 1,900-hour work year is $2.63 per hour — and you can compare that directly against the value of five extra PTO days, which at the same denominator are worth roughly the same. Employers negotiate in salary bands; you should negotiate in true hourly terms, because that is the unit that reflects your life. If an employer cannot move on salary, ask for PTO: each additional paid day off raises your true hourly wage without costing the employer a proportional amount, since much of the employer's cost is fixed. Contractors can use the same logic in reverse: quote the client an hourly rate derived from the target salary multiplied by 1.3 and divided by realistic billable hours, and you will stop underpricing yourself.</p>
+    <h3 class="text-xl font-bold text-white">A final note on what this tool does not do</h3>
+    <p>WageFlip computes gross pay before taxes, deductions, and retirement contributions, because net pay depends on tax brackets, filing status, state or country, and personal elections that no simple converter can know. It assumes overtime is paid at 1.5 times the regular rate, which covers most US non-exempt workers but not every arrangement worldwide — some roles pay double time, some pay flat salary regardless of hours, and some jurisdictions set different thresholds. Treat the results as a planning estimate and confirm the final numbers against your offer letter and pay stub. The value of the tool is not the last decimal place; it is the discipline of converting every offer to the same honest unit — your true hourly wage — before you decide.</p>
+  </div>
+
+  <!-- ============ FAQS ============ -->
+  <div class="max-w-3xl mx-auto mt-12">
+    <h2 class="text-2xl font-extrabold text-white mb-5">Frequently asked questions</h2>
+    <div class="space-y-3">
+      <details class="faq card rounded-xl px-5 py-4">
+        <summary class="flex items-center justify-between cursor-pointer text-white font-semibold text-[15px]">How do I convert an annual salary to an hourly wage?
+          <svg class="chev w-5 h-5 text-mint shrink-0 ml-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></summary>
+        <p class="mt-3 text-sm text-slate-300 leading-relaxed">Divide the annual salary by your actual annual work hours. The quick estimate divides by 2,080 (40 hours &times; 52 weeks), but the accurate method subtracts PTO hours and unpaid weeks first. For example, a $60,000 salary with 15 PTO days at 40 hours per week equals $60,000 &divide; 1,960 hours, or $30.61 per hour — not the $28.85 the 2080 shortcut gives.</p>
+      </details>
+      <details class="faq card rounded-xl px-5 py-4">
+        <summary class="flex items-center justify-between cursor-pointer text-white font-semibold text-[15px]">Why is my true hourly wage different from salary divided by 2080?
+          <svg class="chev w-5 h-5 text-mint shrink-0 ml-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></summary>
+        <p class="mt-3 text-sm text-slate-300 leading-relaxed">The 2,080-hour shortcut assumes you work every one of 52 weeks with zero paid time off and zero unpaid weeks. Paid vacation, sick days, and unpaid leave all shrink the hours you actually work, which raises your true hourly wage because the same pay is spread over fewer hours. Unpaid weeks do the opposite to your annual total: they reduce your yearly pay, so the honest calculation adjusts for both.</p>
+      </details>
+      <details class="faq card rounded-xl px-5 py-4">
+        <summary class="flex items-center justify-between cursor-pointer text-white font-semibold text-[15px]">How does PTO affect my effective hourly rate?
+          <svg class="chev w-5 h-5 text-mint shrink-0 ml-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></summary>
+        <p class="mt-3 text-sm text-slate-300 leading-relaxed">Paid time off raises your effective hourly rate. The formula is: annual pay &divide; (scheduled annual hours &minus; PTO hours). If you earn $60,000 working 40 hours a week and take 15 paid days off (120 hours), your effective rate is $60,000 &divide; 1,960 = $30.61 per hour, about 6% higher than the nominal $28.85 rate. More PTO means a higher true hourly wage for the same salary.</p>
+      </details>
+      <details class="faq card rounded-xl px-5 py-4">
+        <summary class="flex items-center justify-between cursor-pointer text-white font-semibold text-[15px]">How do I factor overtime into my hourly wage?
+          <svg class="chev w-5 h-5 text-mint shrink-0 ml-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></summary>
+        <p class="mt-3 text-sm text-slate-300 leading-relaxed">Add your overtime earnings to your annual pay, then divide by your total hours worked including overtime. Overtime is usually paid at 1.5 times the regular rate. For example, 5 overtime hours per week at a $20 base rate adds $7,800 per year (5 &times; $30 &times; 52). Your true hourly wage then becomes total annual pay &divide; total hours worked, which blends the base rate and the premium rate into one honest number.</p>
+      </details>
+      <details class="faq card rounded-xl px-5 py-4">
+        <summary class="flex items-center justify-between cursor-pointer text-white font-semibold text-[15px]">What does a 25 to 30 percent benefits load mean for salary comparison?
+          <svg class="chev w-5 h-5 text-mint shrink-0 ml-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></summary>
+        <p class="mt-3 text-sm text-slate-300 leading-relaxed">A benefits load is the extra cost an employer pays on top of your salary: health insurance, retirement contributions, payroll taxes, workers compensation, and paid leave. A 25&ndash;30% load means a $60,000 salary actually costs the employer $75,000 to $78,000 per year. When comparing a salaried job with benefits to a contractor rate with no benefits, multiply the salary by roughly 1.25 to 1.30 to find the equivalent contract rate.</p>
+      </details>
+      <details class="faq card rounded-xl px-5 py-4">
+        <summary class="flex items-center justify-between cursor-pointer text-white font-semibold text-[15px]">How should a contractor compare a contract hourly rate to a salary?
+          <svg class="chev w-5 h-5 text-mint shrink-0 ml-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg></summary>
+        <p class="mt-3 text-sm text-slate-300 leading-relaxed">A contractor should convert the salary to an hourly figure using actual work hours (subtracting PTO and unpaid weeks), then multiply by 1.25 to 1.30 to account for missing benefits like health insurance and retirement. For instance, a $60,000 salary with 15 PTO days converts to about $30.61 per true hour, so an equivalent contractor rate is roughly $38 to $40 per hour before considering self-employment taxes and unpaid time between contracts.</p>
+      </details>
+    </div>
+  </div>
+</article>
+
+<!-- ============ FOOTER ============ -->
+<footer class="border-t border-line mt-6">
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-mute">
+    <span class="flex items-center gap-2"><span class="grid place-items-center w-7 h-7 rounded-md bg-mint/15 border border-mint/40 text-mint font-black font-mono text-sm">W</span><span class="font-bold text-slate-200">Wage<span class="text-mint">Flip</span></span> &middot; free salary tools</span>
+    <nav class="flex items-center gap-5">
+      <a href="#top" class="hover:text-mint transition-colors">Home</a>
+      <a href="https://fixoraa.tech" class="hover:text-mint transition-colors">More Tools</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+/* __PURE_START__ */
+'use strict';
+function clampNum(v, lo, hi) {
+  if (!isFinite(v)) return lo;
+  return Math.min(hi, Math.max(lo, v));
+}
+function safeNum(v, fallback) {
+  var n = parseFloat(v);
+  return isFinite(n) ? n : fallback;
+}
+var WF_PERIODS = ['hourly', 'daily', 'weekly', 'monthly', 'annual'];
+function normalizeOpts(raw) {
+  raw = raw || {};
+  var period = WF_PERIODS.indexOf(raw.period) !== -1 ? raw.period : 'annual';
+  return {
+    amount: clampNum(safeNum(raw.amount, 0), 0, 1e15),
+    period: period,
+    currency: typeof raw.currency === 'string' ? raw.currency : '$',
+    hoursPerWeek: clampNum(safeNum(raw.hoursPerWeek, 0), 0, 168),
+    ptoDays: clampNum(safeNum(raw.ptoDays, 0), 0, 365),
+    unpaidWeeks: clampNum(safeNum(raw.unpaidWeeks, 0), 0, 52),
+    overtimeHrs: clampNum(safeNum(raw.overtimeHrs, 0), 0, 168),
+    benefitsOn: !!raw.benefitsOn,
+    benefitsPct: clampNum(safeNum(raw.benefitsPct, 0), 0, 200)
+  };
+}
+function computeWage(raw) {
+  var o = normalizeOpts(raw);
+  var h = o.hoursPerWeek;
+  var paidWeeks = 52 - o.unpaidWeeks;
+  var daysPerWeek = h > 0 ? clampNum(h / 8, 1, 7) : 0;
+  var hoursPerDay = h > 0 ? h / daysPerWeek : 8;
+  var ptoHours = Math.min(o.ptoDays * hoursPerDay, h * 52);
+  var regularAnnualHours = h * paidWeeks;
+  var actualWorked = Math.max(0, regularAnnualHours - ptoHours);
+  var otAnnualHours = o.overtimeHrs * paidWeeks;
+  var totalHours = actualWorked + otAnnualHours;
+
+  // Nominal hourly rate implied by the quoted pay period
+  var nominalHourly = 0;
+  if (o.period === 'hourly') nominalHourly = o.amount;
+  else if (o.period === 'daily') nominalHourly = o.amount / hoursPerDay;
+  else if (o.period === 'weekly') nominalHourly = h > 0 ? o.amount / h : 0;
+  else if (o.period === 'monthly') nominalHourly = h > 0 ? (o.amount * 12) / (h * 52) : 0;
+  else nominalHourly = h > 0 ? o.amount / (h * 52) : 0; // annual
+
+  // Base annual pay (unpaid weeks reduce it), before overtime
+  var baseAnnual = 0;
+  if (o.period === 'hourly' || o.period === 'daily') baseAnnual = nominalHourly * h * paidWeeks;
+  else if (o.period === 'weekly') baseAnnual = o.amount * paidWeeks;
+  else if (o.period === 'monthly') baseAnnual = o.amount * 12 * (paidWeeks / 52);
+  else baseAnnual = o.amount * (paidWeeks / 52); // annual
+
+  var otAnnualPay = o.overtimeHrs * 1.5 * nominalHourly * paidWeeks;
+  var totalAnnual = baseAnnual + otAnnualPay;
+  var trueHourly = totalHours > 0 ? totalAnnual / totalHours : 0;
+
+  var weekly = totalAnnual / 52;
+  var daily = daysPerWeek > 0 ? weekly / daysPerWeek : 0;
+  var monthly = totalAnnual / 12;
+
+  var benefitsAnnual = o.benefitsOn ? totalAnnual * (o.benefitsPct / 100) : 0;
+  var employerAnnual = totalAnnual + benefitsAnnual;
+  var employerHourly = totalHours > 0 ? employerAnnual / totalHours : 0;
+
+  var scheduledHours = h * 52;             // regular + PTO + unpaid
+  var unpaidHours = o.unpaidWeeks * h;
+
+  return {
+    opts: o,
+    nominalHourly: nominalHourly,
+    trueHourly: trueHourly,
+    annual: totalAnnual,
+    monthly: monthly,
+    weekly: weekly,
+    daily: daily,
+    baseAnnual: baseAnnual,
+    overtimeAnnualPay: otAnnualPay,
+    benefitsAnnual: benefitsAnnual,
+    employerAnnual: employerAnnual,
+    employerHourly: employerHourly,
+    paidWeeks: paidWeeks,
+    daysPerWeek: daysPerWeek,
+    hoursPerDay: hoursPerDay,
+    ptoHours: ptoHours,
+    unpaidHours: unpaidHours,
+    regularAnnualHours: regularAnnualHours,
+    actualWorkedHours: actualWorked,
+    overtimeAnnualHours: otAnnualHours,
+    totalHours: totalHours,
+    scheduledHours: scheduledHours
+  };
+}
+function formatMoney(amount, symbol) {
+  if (!isFinite(amount)) amount = 0;
+  var s = typeof symbol === 'string' ? symbol : '$';
+  var neg = amount < 0 ? '-' : '';
+  var abs = Math.abs(amount);
+  var str = abs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return neg + s + str;
+}
+function formatInt(n) {
+  if (!isFinite(n)) n = 0;
+  return Math.round(n).toLocaleString('en-US');
+}
+/* __PURE_END__ */
+
+/* ---------- UI wiring (not part of pure logic) ---------- */
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var els = {
+    amount: $('in-amount'), period: $('in-period'), currency: $('in-currency'),
+    hours: $('in-hours'), pto: $('in-pto'), unpaid: $('in-unpaid'), ot: $('in-ot'),
+    ben: $('in-ben'), benKnob: $('in-ben-knob'), benpct: $('in-benpct'), benpctLabel: $('benpct-label'),
+    formula: $('formula-line'),
+    rTrue: $('r-true'), rNominal: $('r-nominal'), rEmployer: $('r-employer'),
+    rAnnual: $('r-annual'), rMonthly: $('r-monthly'), rWeekly: $('r-weekly'),
+    rDaily: $('r-daily'), rOtPay: $('r-otpay'), rHours: $('r-hours'), rEmpHr: $('r-emphr')
+  };
+  var bars = {
+    worked: $('bar-worked'), pto: $('bar-pto'), unpaid: $('bar-unpaid'), ot: $('bar-ot'),
+    base: $('bar-base'), otpay: $('bar-otpay'), ben: $('bar-ben')
+  };
+  var legs = {
+    worked: $('leg-worked'), pto: $('leg-pto'), unpaid: $('leg-unpaid'), ot: $('leg-ot'),
+    base: $('leg-base'), otpay: $('leg-otpay'), ben: $('leg-ben')
+  };
+
+  var state = {
+    amount: 60000, period: 'annual', currency: '$',
+    hoursPerWeek: 40, ptoDays: 15, unpaidWeeks: 0, overtimeHrs: 0,
+    benefitsOn: true, benefitsPct: 25
+  };
+  try {
+    var saved = JSON.parse(localStorage.getItem('wageflip-v1') || 'null');
+    if (saved && typeof saved === 'object') {
+      for (var k in state) if (saved[k] !== undefined) state[k] = saved[k];
+    }
+  } catch (e) {}
+
+  function readInputs() {
+    state.amount = safeNum(els.amount.value, state.amount);
+    state.period = els.period.value;
+    state.currency = els.currency.value;
+    state.hoursPerWeek = safeNum(els.hours.value, state.hoursPerWeek);
+    state.ptoDays = safeNum(els.pto.value, state.ptoDays);
+    state.unpaidWeeks = safeNum(els.unpaid.value, state.unpaidWeeks);
+    state.overtimeHrs = safeNum(els.ot.value, state.overtimeHrs);
+    state.benefitsPct = safeNum(els.benpct.value, state.benefitsPct);
+    try { localStorage.setItem('wageflip-v1', JSON.stringify(state)); } catch (e) {}
+  }
+
+  function setBar(el, frac) {
+    el.style.width = (clampNum(frac, 0, 1) * 100).toFixed(2) + '%';
+  }
+
+  function render() {
+    readInputs();
+    var r = computeWage(state);
+    var c = state.currency;
+
+    els.rTrue.innerHTML = formatMoney(r.trueHourly, c) + '<span class="text-base font-medium text-mute">/hr</span>';
+    els.rNominal.textContent = formatMoney(r.nominalHourly, c);
+    els.rEmployer.textContent = formatMoney(Math.round(r.employerAnnual), c).replace(/\.00$/, '');
+    els.rAnnual.textContent = formatMoney(Math.round(r.annual), c).replace(/\.00$/, '');
+    els.rMonthly.textContent = formatMoney(Math.round(r.monthly), c).replace(/\.00$/, '');
+    els.rWeekly.textContent = formatMoney(Math.round(r.weekly), c).replace(/\.00$/, '');
+    els.rDaily.textContent = formatMoney(r.daily, c);
+    els.rOtPay.textContent = formatMoney(Math.round(r.overtimeAnnualPay), c).replace(/\.00$/, '');
+    els.rHours.textContent = formatInt(r.totalHours);
+    els.rEmpHr.innerHTML = 'Employer cost: <span class="text-gold font-bold">' + formatMoney(r.employerHourly, c) + '</span>/true hour';
+
+    // Time bar (denominator: scheduled regular+pto+unpaid hours + overtime)
+    var tDen = r.scheduledHours + r.overtimeAnnualHours;
+    setBar(bars.worked, tDen > 0 ? r.actualWorkedHours / tDen : 0);
+    setBar(bars.pto, tDen > 0 ? r.ptoHours / tDen : 0);
+    setBar(bars.unpaid, tDen > 0 ? r.unpaidHours / tDen : 0);
+    setBar(bars.ot, tDen > 0 ? r.overtimeAnnualHours / tDen : 0);
+    legs.worked.textContent = formatInt(r.actualWorkedHours) + ' h';
+    legs.pto.textContent = formatInt(r.ptoHours) + ' h';
+    legs.unpaid.textContent = formatInt(r.unpaidHours) + ' h';
+    legs.ot.textContent = formatInt(r.overtimeAnnualHours) + ' h';
+
+    // Pay bar (denominator: employer annual)
+    var pDen = r.employerAnnual;
+    setBar(bars.base, pDen > 0 ? r.baseAnnual / pDen : 0);
+    setBar(bars.otpay, pDen > 0 ? r.overtimeAnnualPay / pDen : 0);
+    setBar(bars.ben, pDen > 0 ? r.benefitsAnnual / pDen : 0);
+    var rnd = function (x) { return formatMoney(Math.round(x), c).replace(/\.00$/, ''); };
+    legs.base.textContent = rnd(r.baseAnnual);
+    legs.otpay.textContent = rnd(r.overtimeAnnualPay);
+    legs.ben.textContent = rnd(r.benefitsAnnual);
+
+    els.formula.textContent = 'True hourly = ' + rnd(r.annual) + ' ÷ ' + formatInt(r.totalHours) +
+      ' hrs (' + formatInt(r.actualWorkedHours) + ' worked + ' + formatInt(r.overtimeAnnualHours) +
+      ' OT). Nominal = quoted ' + state.period + ' rate ÷ scheduled hours.';
+
+    els.benpctLabel.textContent = '+' + Math.round(state.benefitsPct) + '%';
+  }
+
+  function syncControls() {
+    els.amount.value = state.amount;
+    els.period.value = state.period;
+    els.currency.value = state.currency;
+    els.hours.value = state.hoursPerWeek;
+    els.pto.value = state.ptoDays;
+    els.unpaid.value = state.unpaidWeeks;
+    els.ot.value = state.overtimeHrs;
+    els.benpct.value = state.benefitsPct;
+    paintSwitch();
+  }
+
+  function paintSwitch() {
+    els.ben.setAttribute('aria-checked', state.benefitsOn ? 'true' : 'false');
+    els.ben.classList.toggle('bg-mint', state.benefitsOn);
+    els.ben.classList.toggle('bg-slate-600', !state.benefitsOn);
+    els.benKnob.style.left = state.benefitsOn ? '22px' : '2px';
+  }
+
+  ['amount', 'period', 'currency', 'hours', 'pto', 'unpaid', 'ot', 'benpct'].forEach(function (k) {
+    var map = { amount: 'input', period: 'change', currency: 'change', hours: 'input', pto: 'input', unpaid: 'input', ot: 'input', benpct: 'input' };
+    els[k].addEventListener(map[k], render);
+  });
+  els.ben.addEventListener('click', function () {
+    state.benefitsOn = !state.benefitsOn;
+    paintSwitch();
+    render();
+  });
+
+  syncControls();
+  render();
+})();
+</script>
+</body>
+</html>
